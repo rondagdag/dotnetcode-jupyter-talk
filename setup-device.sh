@@ -1,10 +1,18 @@
-#!/bin/bash -e
+#!/bin/bash
+###############################################################
+#                Unofficial 'Bash strict mode'                #
+# http://redsymbol.net/articles/unofficial-bash-strict-mode/  #
+###############################################################
+set -euo pipefail
+IFS=$'\n\t'
+###############################################################
 
-##########################################################
-### Install System.Drawing dependencies and virtualenv ###
-##########################################################
+
+#############################
+### Install dependencies  ###
+#############################
 echo "Installing dependencies..."
-sudo apt install -y libgdiplus virtualenv libffi-dev
+sudo apt install -y libgdiplus libffi-dev zlib1g
 echo ""
 
 
@@ -13,22 +21,21 @@ echo ""
 ####################
 echo "Installing .NET..."
 curl -L https://dot.net/v1/dotnet-install.sh | bash -e
+curl -L https://dot.net/v1/dotnet-install.sh | bash -e -s -- --channel 5.0
 echo ""
 
-echo "Updating PATH, DOTNET_ROOT and LD_LIBRARY_PATH environment variables..."
+echo "Updating PATH and DOTNET_ROOT environment variables..."
 if ! grep -q ".NET Core SDK tools" "/home/pi/.bashrc"; then
   cat << \EOF >> "/home/pi/.bashrc"
 # .NET Core SDK tools
 export PATH=${PATH}:/home/pi/.dotnet
 export PATH=${PATH}:/home/pi/.dotnet/tools
 export DOTNET_ROOT=/home/pi/.dotnet
-export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/local/lib
 EOF
 fi
 export PATH=${PATH}:/home/pi/.dotnet
 export PATH=${PATH}:/home/pi/.dotnet/tools
 export DOTNET_ROOT=/home/pi/.dotnet
-export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/local/lib
 echo ""
 
 
@@ -46,13 +53,12 @@ add_nuget_src() {
   fi
 }
 
-mkdir -p "/home/pi/localNuget"
-add_nuget_src "/home/pi/localNuget" local
-add_nuget_src https://api.nuget.org/v3/index.json nuget.org
-add_nuget_src https://dotnet.myget.org/F/dotnet-try/api/v3/index.json dotnet-try
-add_nuget_src https://dotnet.myget.org/F/roslyn/api/v3/index.json roslyn
-add_nuget_src https://dotnet.myget.org/F/dotnet-corefxlab/api/v3/index.json dotnet-corefxlab
-add_nuget_src https://www.powershellgallery.com/api/v2/ PSGallery
+add_nuget_src https://pkgs.dev.azure.com/dnceng/public/_packaging/dotnet-public/nuget/v3/index.json dotnet-public
+add_nuget_src https://pkgs.dev.azure.com/dnceng/public/_packaging/dotnet-eng/nuget/v3/index.json dotnet-eng
+add_nuget_src https://pkgs.dev.azure.com/dnceng/public/_packaging/dotnet-tools/nuget/v3/index.json dotnet-tools
+add_nuget_src https://pkgs.dev.azure.com/dnceng/public/_packaging/dotnet3.1/nuget/v3/index.json dotnet3-dev
+add_nuget_src https://pkgs.dev.azure.com/dnceng/public/_packaging/dotnet5/nuget/v3/index.json dotnet5
+add_nuget_src https://pkgs.dev.azure.com/dnceng/public/_packaging/MachineLearning/nuget/v3/index.json MachineLearning
 echo ""
 
 
@@ -60,31 +66,12 @@ echo ""
 ### Install .NET interactive ###
 ################################
 
-dotnet tool install -g --add-source "https://dotnet.myget.org/F/dotnet-try/api/v3/index.json" Microsoft.dotnet-interactive
+if echo "$(dotnet tool list -g)" | grep -q "microsoft.dotnet-interactive"; then
+  echo ".NET Interactive installation found - updating..."
+  command="update"
+else
+  echo ".NET Interactive installation not found - installing..."
+  command="install"
+fi
 
-##########################
-### Install PowerShell ###
-##########################
-
-dotnet tool install -g powershell
-
-#######################
-### Install Jupyter ###
-#######################
-cd
-
-# Create virtual env
-echo "Installing Jupyter: creating virtualenv..."
-rm -rf .jupyter_venv || true
-virtualenv .jupyter_venv -p python3
-source .jupyter_venv/bin/activate
-
-# Inside the virtual env: Install jupyter
-echo "virtualenv: pip install jupyter jupyterlab..."
-pip3 install jupyter jupyterlab
-
-# Inside the virtual env: Install .NET kernel
-echo "virtualenv: install .NET kernel..."
-dotnet interactive jupyter install
-
-deactivate
+dotnet tool "${command}" -g --add-source "https://pkgs.dev.azure.com/dnceng/public/_packaging/dotnet-tools/nuget/v3/index.json" Microsoft.dotnet-interactive
